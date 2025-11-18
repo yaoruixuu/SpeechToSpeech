@@ -66,6 +66,15 @@ def on_button_pressed():
     audio_data = record_audio(duration=5, sample_rate=16000, channels=1, mic_index=0)
     predicted_phrase, dist = classify(audio_data, sr=16000)
     print(f"Predicted phrase: {predicted_phrase}, DTW distance: {dist}")
+    text_to_speech_pyttsx3(phrases[predicted_phrase])
+
+def text_to_speech_pyttsx3(text, rate=150, volume=1.0):
+    import pyttsx3
+    engine = pyttsx3.init()
+    engine.setProperty('rate', rate) # Speed of speech
+    engine.setProperty('volume', volume) # Volume level (0.0 to 1.0)
+    engine.say(text)
+    engine.runAndWait()
 
 
 def main():
