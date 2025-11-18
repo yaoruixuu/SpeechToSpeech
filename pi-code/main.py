@@ -8,6 +8,17 @@ import librosa
 from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
 
+# phrases
+phrases = {
+"phrase1": "Alexa, play classic country",
+"phrase2": "Alexa, play tsn 1200",
+"phrase3": "Alexa, please remind me to call Elain and Al this afternoon",
+"phrase4": "Alexa, remind me to watch the redblacks game",
+"phrase5": "Alexa, remind me to pick up coke zero"
+}
+
+
+
 
 # --- 1. Extract MFCC from raw audio array ---
 def extract_mfcc_from_array(audio_data, sr=16000, n_mfcc=13):
