@@ -7,12 +7,16 @@ import librosa
 import os
 import threading
 import subprocess
-from gpiozero import Button
+from gpiozero import Button, LED
 from signal import pause
 from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
-import queue
 import time
+
+# -----------------------------
+# GLOBAL LED (needed in threads)
+# -----------------------------
+led = None
 
 # -----------------------------
 # PHRASE RESPONSES
@@ -67,11 +71,16 @@ class Recorder:
         with self.lock:
             self.audio_buffer = []
             self.done.clear()
-            with sd.InputStream(samplerate=self.sample_rate, channels=1, callback=self.audio_callback):
+            with sd.InputStream(
+                samplerate=self.sample_rate,
+                channels=1,
+                callback=self.audio_callback
+            ):
                 print(f"Recording for {self.max_samples / self.sample_rate:.1f} seconds...")
-                self.done.wait()  # wait until buffer is full
-            audio_data = np.array(self.audio_buffer[:self.max_samples]).astype(np.float32)
-            audio_16k = librosa.resample(audio_data, orig_sr=self.sample_rate, target_sr=16000)
+                self.done.wait()
+
+            audio = np.array(self.audio_buffer[:self.max_samples]).astype(np.float32)
+            audio_16k = librosa.resample(audio, orig_sr=self.sample_rate, target_sr=16000)
             audio_16k = np.int16(audio_16k * 32767)
             print("Recording complete.")
             return audio_16k
@@ -97,16 +106,17 @@ def classify(audio_data):
     for phrase, mfcc_list in templates.items():
         for mfcc_template in mfcc_list:
             dist, path = fastdtw(mfcc_test, mfcc_template, dist=euclidean)
-            dist /= len(path)  # normalize
+            dist /= len(path)
             if dist < best_distance:
                 best_distance = dist
                 best_phrase = phrase
     return best_phrase, best_distance
 
 # -----------------------------
-# TTS
+# TEXT TO SPEECH
 # -----------------------------
 tts_lock = threading.Lock()
+
 def speak(text):
     with tts_lock:
         subprocess.run(["espeak", text])
@@ -117,9 +127,21 @@ def speak(text):
 recorder = Recorder(duration=10)
 
 def process_audio():
+    global led
+
+    # Turn solid ON while recording
+    led.off()
+    led.on()
+
     audio_data = recorder.record()
+
+    # Back to blinking when done
+    led.off()
+    led.blink(on_time=1, off_time=1)
+
     phrase, dist = classify(audio_data)
     print(f"Detected: {phrase} (DTW={dist:.2f})")
+
     if phrase in phrases:
         speak(phrases[phrase])
     else:
@@ -129,7 +151,6 @@ def process_audio():
 # BUTTON CALLBACK
 # -----------------------------
 def on_button_pressed():
-    # Only one recording at a time
     if recorder.lock.locked():
         print("Recording already in progress...")
         return
@@ -139,15 +160,23 @@ def on_button_pressed():
 # MAIN
 # -----------------------------
 def main():
+    global led
+
     print("Loading templates...")
     load_templates()
     print("Templates loaded.")
     print("System ready — press button and speak.")
 
     button = Button(17)
+    led = LED(27)
+
+    # Blink to show system idle + ready
+    led.blink(on_time=1, off_time=1)
+
     button.when_pressed = on_button_pressed
 
     pause()
+
 
 if __name__ == "__main__":
     main()
